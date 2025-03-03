@@ -4,8 +4,11 @@ from fuzzywuzzy import fuzz
 import os
 
 app = Flask(__name__)
+
+# Buat folder uploads jika belum ada
 UPLOAD_FOLDER = "uploads"
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
 
 # Fungsi pengecekan tunggakan
 def check_tunggakan(file_kendaraan_baru, file_tunggakan):
@@ -15,6 +18,11 @@ def check_tunggakan(file_kendaraan_baru, file_tunggakan):
     # Normalisasi nama kolom
     data_kendaraan_baru.columns = data_kendaraan_baru.columns.str.upper()
     data_tunggakan.columns = data_tunggakan.columns.str.upper()
+
+    # Pastikan hanya kolom yang diperlukan
+    if not {'NOPOL', 'NAMA', 'ALAMAT', 'NIK'}.issubset(data_tunggakan.columns):
+        return "Format file tunggakan salah!", 400
+
     data_tunggakan = data_tunggakan[['NOPOL', 'NAMA', 'ALAMAT', 'NIK']]
 
     hasil_pengecekan = []
@@ -49,18 +57,23 @@ def check_tunggakan(file_kendaraan_baru, file_tunggakan):
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
+        if 'file_kendaraan' not in request.files or 'file_tunggakan' not in request.files:
+            return "File tidak ditemukan!", 400
+
         file_kendaraan_baru = request.files['file_kendaraan']
         file_tunggakan = request.files['file_tunggakan']
 
-        if file_kendaraan_baru and file_tunggakan:
-            kendaraan_path = os.path.join(UPLOAD_FOLDER, file_kendaraan_baru.filename)
-            tunggakan_path = os.path.join(UPLOAD_FOLDER, file_tunggakan.filename)
+        if file_kendaraan_baru.filename == '' or file_tunggakan.filename == '':
+            return "Nama file tidak boleh kosong!", 400
 
-            file_kendaraan_baru.save(kendaraan_path)
-            file_tunggakan.save(tunggakan_path)
+        kendaraan_path = os.path.join(UPLOAD_FOLDER, file_kendaraan_baru.filename)
+        tunggakan_path = os.path.join(UPLOAD_FOLDER, file_tunggakan.filename)
 
-            hasil_file = check_tunggakan(kendaraan_path, tunggakan_path)
-            return send_file(hasil_file, as_attachment=True)
+        file_kendaraan_baru.save(kendaraan_path)
+        file_tunggakan.save(tunggakan_path)
+
+        hasil_file = check_tunggakan(kendaraan_path, tunggakan_path)
+        return send_file(hasil_file, as_attachment=True)
 
     return '''
     <!doctype html>
@@ -87,9 +100,8 @@ def upload_file():
     </body>
     </html>
     '''
-    
-import os
 
+# Perbaiki kode untuk Railway (PORT otomatis)
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
